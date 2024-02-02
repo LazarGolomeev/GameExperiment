@@ -41,10 +41,14 @@ var gameOver = false;
 var scoreText;
 let starCount = 11;
 let enemyCollisions = 0;
+let playerLastDirection;
 
 var game = new Phaser.Game(config);
 const gameWidth = game.scale.width;
 const gameHeight = game.scale.height;
+
+const groundPositionX = gameWidth / 2;
+const groundPositionY = gameHeight - 30;
 
 function preload() {
     this.load.image("sky", sky);
@@ -61,8 +65,6 @@ function preload() {
 }
 
 function create() {
-    const groundPositionX = gameWidth / 2;
-    const groundPositionY = gameHeight - 30;
     console.log(gameWidth, gameHeight);
 
 
@@ -71,6 +73,8 @@ function create() {
 
     //  The platforms group contains the ground and the 2 ledges we can jump on
     platforms = this.physics.add.staticGroup();
+    const ground = this.add.rectangle(groundPositionX, groundPositionY, gameWidth, 60, 0x009900);
+    const lavaPatchets = createLavaPatches.call(this, 5);
 
     //  Now let's create some ledges
     const firstJumpingPlatformPositionY = groundPositionY - 150;
@@ -80,7 +84,7 @@ function create() {
 
     if (gameWidth > 800) {
         const thirdJumpingPlatform = platforms.create(firstJumpingPlatformPositionX - 900, firstJumpingPlatformPositionY - 300, "ground");
-        starCount = 15;
+        starCount = 13;
     }
     if (gameWidth > 1200 && gameHeight > 800) {
         const fourthJumpingPlatform = platforms.create(firstJumpingPlatformPositionX - 1350, firstJumpingPlatformPositionY - 450, "ground");
@@ -97,7 +101,6 @@ function create() {
     }
     // platforms.create(groundPositionX, gameHeight / 2 - 100, "ground");
     // platforms.create(750, 220, "ground");
-    const ground = this.add.rectangle(groundPositionX, groundPositionY, gameWidth, 60, 0x009900);
     platforms.add(ground);
     // platforms.create(400, 568, 50, 10).setScale(2).refreshBody();
 
@@ -160,7 +163,8 @@ function create() {
 
     //  Checks to see if the player overlaps with any of the stars, if he does call the collectStar function
     // this.physics.add.overlap(player, stars, collectStar, null, this);
-
+    
+    this.physics.add.collider(player, lavaPatchets, collideWithLava, null, this);
     this.physics.add.collider(player, stars, collideWithEnemy, null, this);
     // Add a key for firing bombs
     this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -180,7 +184,7 @@ function create() {
         }
     });
 
-    console.log('stars', stars);
+    console.log(stars.countActive(true));
 }
 
 function update() {
@@ -222,20 +226,32 @@ function update() {
         endGame.call(this, '80ff80', 'You Win');
     }
 
+    if(player.body.velocity.x > 0 ){
+        playerLastDirection = 'right';
+    }else if(player.body.velocity.x < 0){
+        playerLastDirection = 'left';
+    }
+
 }
 
 function fireBomb() {
     var bomb = bombs.create(player.x, player.y, 'bomb');
-    if (player.body.velocity.x >= 0) {
-        bomb.setVelocityX(300); // Adjust velocity as needed
-    } else {
-        bomb.setVelocityX(-300); // Adjust velocity as needed
+  
+   
+    if (playerLastDirection === 'right') {
+        bomb.setVelocityX(450); // Adjust velocity as needed
+    } else if (playerLastDirection === 'left'){
+        bomb.setVelocityX(-450); // Adjust velocity as needed
     }
     bomb.setCollideWorldBounds(true);
     bomb.setBounce(0.90);
     bomb.allowGravity = false;
     bomb.setData('collisions', 0); // Custom data to track collisions with world bounds
     bomb.body.onWorldBounds = true;
+    this.time.delayedCall(3000, () => {
+        bomb.destroy(); // This disables and hides the bomb
+        // If you want to completely destroy the bomb instead, use bomb.destroy();
+    });
 }
 
 function bombHitsStar(bomb, star) {
@@ -258,6 +274,9 @@ function bombHitsStar(bomb, star) {
 
 function collideWithEnemy(player, star) {
     enemyCollisions++;
+    if (enemyCollisions > 3) {
+        endGame.call(this, 'ff0000', 'Game Over');
+    }
     if (score > 0) {
         score -= 10;
         scoreText.setText('Score: ' + score);
@@ -267,7 +286,6 @@ function collideWithEnemy(player, star) {
         endGame.call(this, 'ff0000', 'Game Over');
     }
 }
-
 function endGame(tint, message) {
     let fontSize = 150;
     let textPositionX = gameWidth/2 - 350;
@@ -289,4 +307,30 @@ function endGame(tint, message) {
         fontSize: `${fontSize}px`,
         fill: `#${tint}`,
     });
+}
+
+function createLavaPatches(numberOfPatches) {
+    // for (let i = 0; i < numberOfPatches; i++) {
+    //     // Generate a random position for each lava patch
+    //     let randomX = Phaser.Math.Between(0, gameWidth);
+
+    //     // Create a lava patch at the generated position
+    //     this.add.rectangle(randomX, groundPositionY -20, 60, 30, 0xff0000);
+    // }
+    const lavaPatches = this.physics.add.staticGroup(); // Use a static physics group for lava patches
+    
+    for (let i = 0; i < numberOfPatches; i++) {
+        let randomX = Phaser.Math.Between(0, gameWidth);
+        // let randomY = Phaser.Math.Between(0, gameHeight); // Adjust if you have a specific Y position in mind
+
+        // Create a physics-enabled lava patch
+        lavaPatches.create(randomX, groundPositionY -15, null).setSize(60, 30).setOffset(-30, -15).setVisible(false);
+        this.add.rectangle(randomX, groundPositionY -15, 60, 30, 0xff0000); // Add visual representation if needed
+    }
+
+    return lavaPatches;
+}
+
+function collideWithLava(player, lavaPatch) {
+    endGame.call(this, 'ff0000', 'Game Over');
 }
